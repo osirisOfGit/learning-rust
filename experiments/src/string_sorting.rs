@@ -59,7 +59,7 @@ mod tests {
 
     #[test]
     fn sort_works() {
-        let (alpha_words, alpha_sentence) = self::sort(&mut String::from("The Quick Brown Fox jumped over the laZy Dog"));
+        let (alpha_words, alpha_sentence) = self::sort(& String::from("The Quick Brown Fox jumped over the laZy Dog"));
 
         assert_eq!(alpha_words, String::from("ehT cikQu Bnorw Fox dejmpu eorv eht alyZ Dgo"));
         assert_eq!(alpha_sentence, String::from("aBcdDeeeeFghhijklmnoooopQrrTtuuvwxyZ"));
