@@ -22,6 +22,8 @@ Get practice implementing [Rust](https://doc.rust-lang.org/book/) in combination
   - [ ] Button to add new board, automatically resizing to fit appropriate amount
   - [ ] Button to remove existing board
 
+## Lessons Learned
+
 ### Useful links
 
 - <https://bevy-cheatbook.github.io/platforms/windows/wsl2.html>

@@ -1,3 +1,9 @@
+/*
+    1. Take an input String
+    2. Sort each word in the string alphabetically, preserving word sizing, order, and spacing
+    3. Sort each character in the string alphabetically, disregarding word sizing, order, and spacing
+*/
+
 use std::cmp::Ordering;
 
 pub fn sort(input: String) -> (String, String) {
