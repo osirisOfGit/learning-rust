@@ -1,17 +1,30 @@
 /*
-    1. Define a 3 way translation system, where values from System B and C
-        can translate to/from System A as long as there is a mapping for it
-    2.
+    1. Define a 3 way translation system, where (A <==> B <==> C)
+    2. Be able to translate from the String Display Value or Enum variant
+
+    Using Strum for Enum Manipulation - https://docs.rs/strum/latest
 */
 
-// You need to bring the trait into scope to use it!
+use std::fmt::Display;
 use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
+use strum_macros::{Display, EnumIter};
 
-trait CoreTranslation {
+trait CoreTranslation: IntoEnumIterator + PartialEq + Display {
     fn translate_to_display(&self) -> String;
+
+    fn translate_from_display(display_val: &String) -> Option<Self> {
+        for val in Self::iter() {
+            if val.translate_to_display().eq(display_val) {
+                return Some(val);
+            }
+        }
+
+        None
+    }
 }
 
+#[derive(EnumIter, PartialEq, Debug, Display)]
+#[strum(prefix = "CommonSystem:")]
 enum CommonSystem {
     First,
     Second,
@@ -32,29 +45,30 @@ impl CoreTranslation for CommonSystem {
 // but to take it a step further i'm just designing this system to work
 // with any kind of Common data model, based on a real-world (large enterprise)
 // scenario i had to solve in Java
-trait BiDirectionalCommonTranslation<T: CoreTranslation> {
+trait BiDirectionalCommonTranslation<T: CoreTranslation>: CoreTranslation {
     fn translate_to_common_enum(&self) -> T;
 
     fn translate_to_common_display(&self) -> String {
         self.translate_to_common_enum().translate_to_display()
     }
 
-    fn translate_from_common_enum<NC>(common_enum: T, enum_to_translate_to: NC) -> NC
-    where
-        NC: BiDirectionalCommonTranslation<T> + CoreTranslation,
-    {
-		NC::
+    fn translate_from_common_enum(common_enum: &T) -> Option<Self> {
+        for system_var in Self::iter() {
+            if system_var.translate_to_common_enum().eq(common_enum) {
+                return Some(system_var);
+            }
+        }
+
+        None
     }
 
-    fn translate_from_common_enum_to_display<NC>(common_enum: T, enum_to_translate_to: NC) -> String
-    where
-        NC: BiDirectionalCommonTranslation<T> + CoreTranslation,
-    {
-        Self::translate_from_common_enum(common_enum, enum_to_translate_to)
-            .translate_to_common_display()
+    fn translate_from_common_enum_to_display(common_enum: &T) -> Option<String> {
+        Self::translate_from_common_enum(&common_enum).map(|sys_e| sys_e.translate_to_display())
     }
 }
 
+#[derive(EnumIter, PartialEq, Debug, Display)]
+#[strum(prefix = "LegacySystem:")]
 enum LegacySystem {
     LegacyFirst,
     LegacySecond,
@@ -81,6 +95,8 @@ impl BiDirectionalCommonTranslation<CommonSystem> for LegacySystem {
     }
 }
 
+#[derive(EnumIter, PartialEq, Debug, Display)]
+#[strum(prefix = "ModernSystem:")]
 enum ModernSystem {
     ModernFirst,
     ModernSecond,
@@ -107,8 +123,60 @@ impl BiDirectionalCommonTranslation<CommonSystem> for ModernSystem {
     }
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod test {
+    use super::*;
+
     #[test]
-    fn translate_from_non_common_display_to_common_enum() {}
+    fn test_them_all() {
+        // Repeat for CommonSystem
+        for modern in ModernSystem::iter() {
+            let (expected_display, expected_common) = match modern {
+                ModernSystem::ModernFirst => ("modernFirst", CommonSystem::First),
+                ModernSystem::ModernSecond => ("modernSecond", CommonSystem::Second),
+                ModernSystem::ModernThird => ("modernThird", CommonSystem::Third),
+            };
+
+            let display_value = String::from(expected_display);
+
+            assert_eq!(
+                display_value,
+                modern.translate_to_display(),
+                "{modern} did not translate into {display_value}"
+            );
+            assert_eq!(
+                expected_common,
+                modern.translate_to_common_enum(),
+                "{modern} did not translate to {expected_common}"
+            );
+            assert_eq!(
+                expected_common.translate_to_display(),
+                modern.translate_to_common_display(),
+                "{modern} did not translate into {expected_common}"
+            );
+
+            let modern = Some(modern);
+            assert_eq!(
+                modern,
+                ModernSystem::translate_from_common_enum(&expected_common)
+            );
+
+            assert_eq!(modern, ModernSystem::translate_from_display(&display_value));
+
+            assert_eq!(
+                Some(display_value),
+                ModernSystem::translate_from_common_enum_to_display(&expected_common)
+            );
+        }
+    }
+
+    #[test]
+    fn translate_e2e() {
+        assert_eq!(
+            Some(ModernSystem::ModernThird),
+            ModernSystem::translate_from_common_enum(
+                &LegacySystem::LegacyThird.translate_to_common_enum()
+            )
+        )
+    }
 }
