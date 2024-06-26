@@ -13,13 +13,9 @@ trait CoreTranslation: IntoEnumIterator + PartialEq + Display {
     fn translate_to_display(&self) -> String;
 
     fn translate_from_display(display_val: &String) -> Option<Self> {
-        for val in Self::iter() {
-            if val.translate_to_display().eq(display_val) {
-                return Some(val);
-            }
-        }
-
-        None
+        Self::iter()
+            .filter(|val| val.translate_to_display().eq(display_val))
+            .last()
     }
 }
 
@@ -53,13 +49,9 @@ trait BiDirectionalCommonTranslation<T: CoreTranslation>: CoreTranslation {
     }
 
     fn translate_from_common_enum(common_enum: &T) -> Option<Self> {
-        for system_var in Self::iter() {
-            if system_var.translate_to_common_enum().eq(common_enum) {
-                return Some(system_var);
-            }
-        }
-
-        None
+        Self::iter()
+            .filter(|system_enum| system_enum.translate_to_common_enum().eq(common_enum))
+            .last()
     }
 
     fn translate_from_common_enum_to_display(common_enum: &T) -> Option<String> {
