@@ -5,6 +5,10 @@ edition = "2021"
 
 [dependencies]
 bevy = "0.13.2"
+# https://crates.io/crates/tiled - https://docs.rs/tiled/latest/tiled/
+# there is https://crates.io/crates/bevy_ecs_tilemap, but for learning purposes,
+# i'm gonna do this project the hard way
+tiled = "0.12.0"
 
 # https://bevyengine.org/learn/quick-start/getting-started/setup/#compile-with-performance-optimizations
 # Enable a small amount of optimization in debug mode
