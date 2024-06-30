@@ -3,15 +3,15 @@ use std::path::Path;
 use bevy::{
     app::{App, Startup},
     asset::{AssetPath, AssetServer},
-    log::{error, info},
+    log::error,
     math::Rect,
-    prelude::{Camera2dBundle, Commands, Component, Query, Res},
+    prelude::{Camera2dBundle, Commands, Query, Res},
     sprite::{Sprite, SpriteBundle},
     transform::components::Transform,
     window::Window,
     DefaultPlugins,
 };
-use tiled::{LayerTile, LayerType, Loader};
+use tiled::{LayerType, Loader};
 
 fn main() {
     App::new()
@@ -34,19 +34,17 @@ fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<Asse
 
             for x in 0..layer.width().unwrap() {
                 for y in 0..layer.height().unwrap() {
-                    info!("Processing x {} | y {}", x, y);
                     layer.get_tile(x as i32, y as i32).map(|layer_tile| {
                         layer_tile.get_tile().map(|tile| {
                             let image_path =
                                 tile.tileset().image.as_ref().unwrap().source.file_name().unwrap();
-                            info!("Image path is {:?}", image_path);
                             commands.spawn(SpriteBundle {
                                 sprite: Sprite {
                                     rect: Some(Rect::new(
-                                        (layer_tile.id() * map.tile_width) as f32,
+                                        (layer_tile.id() * layer_tile.get_tileset().tile_width) as f32,
                                         0.,
-                                        ((layer_tile.id() + 1) * map.tile_width) as f32,
-                                        0.,
+                                        ((layer_tile.id() + 1) * layer_tile.get_tileset().tile_width) as f32,
+                                        layer_tile.get_tileset().tile_height as f32,
                                     )),
                                     ..Default::default()
                                 },
