@@ -3,10 +3,22 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "",
+    "activeFile": "//wsl.localhost/Ubuntu/home/osiris/projects/learning-rust/checkers/assets/checkers_board.tmx",
     "expandedProjectPaths": [
     ],
+    "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
+        "//wsl.localhost/Ubuntu/home/osiris/projects/learning-rust/checkers/assets/Spaces.tsx": {
+            "scaleInDock": 1
+        },
+        "//wsl.localhost/Ubuntu/home/osiris/projects/learning-rust/checkers/assets/checkers_board.tmx": {
+            "scale": 9.5,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 77.3157894736842,
+                "y": 63.94736842105263
+            }
+        }
     },
     "last.imagePath": "//wsl$/Ubuntu/home/osiris/projects/learning-rust/checkers/assets",
     "map.height": 8,
@@ -15,9 +27,11 @@
     "map.tileWidth": 16,
     "map.width": 8,
     "openFiles": [
+        "//wsl.localhost/Ubuntu/home/osiris/projects/learning-rust/checkers/assets/checkers_board.tmx"
     ],
     "project": "checkers_board.tiled-project",
     "recentFiles": [
+        "//wsl.localhost/Ubuntu/home/osiris/projects/learning-rust/checkers/assets/checkers_board.tmx"
     ],
     "tileset.lastUsedFormat": "tsx",
     "tileset.tileSize": {
