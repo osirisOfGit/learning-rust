@@ -7,7 +7,7 @@ Get practice implementing [Rust](https://doc.rust-lang.org/book/) in combination
 ## Milestones
 
 - [ ] Implement Traditional Checkers
-  - [ ] Drawing the board w/ proper colour scheme
+  - [x] Drawing the board w/ proper colour scheme
   - [ ] Rendering the pieces in the correct positions w/ correct colours
   - [ ] Allow player to play both ends, enforcing turns
   - [ ] Win/lose conditions
@@ -26,4 +26,5 @@ Get practice implementing [Rust](https://doc.rust-lang.org/book/) in combination
 
 ### Useful links
 
+- <https://doc.mapeditor.org/en/stable/>
 - <https://bevy-cheatbook.github.io/platforms/windows/wsl2.html>
