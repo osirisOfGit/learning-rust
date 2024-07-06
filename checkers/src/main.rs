@@ -1,17 +1,15 @@
 use std::{
-    ops::{Add, Div, Mul},
+    ops::{Div, Mul},
     path::Path,
-    thread::sleep,
-    time::{self, Duration},
 };
 
 use bevy::{
     app::{App, Startup},
     asset::{AssetPath, AssetServer},
-    log::{error, info},
-    math::{Rect, Vec3},
+    log::error,
+    math::{Rect, Vec2},
     prelude::{
-        default, Camera2dBundle, Commands, DefaultPlugins, PluginGroup, Query, Res, WindowPlugin,
+        default, Camera2dBundle, Commands, DefaultPlugins, PluginGroup, Query, Res, Resource, WindowPlugin
     },
     sprite::{Sprite, SpriteBundle},
     transform::components::Transform,
@@ -23,7 +21,8 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                resolution: WindowResolution::new(128., 128.).with_scale_factor_override(4.0),
+                resolution: WindowResolution::new(1028., 1028.),
+                fit_canvas_to_parent: true,
                 ..default()
             }),
             ..default()
@@ -43,11 +42,14 @@ fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<Asse
                 LayerType::Tiles(layer) => layer,
                 _ => panic!("Layer #0 is not a tile layer"),
             };
-
             let resolution = &windows.single().resolution;
+
+            let true_width = map.tile_width as f32 + resolution.width().div(layer.width().unwrap() as f32);
+            let true_height = map.tile_height as f32 + resolution.height().div(layer.height().unwrap() as f32);
+
             let top_left_coord = (
-                (0. - resolution.width().div(2.)) + map.tile_width.div(2) as f32,
-                (0. - resolution.height().div(2.)) + map.tile_height.div(2) as f32,
+                (0. - resolution.width().div(2.)) + true_width.div(2.),
+                (0. - resolution.height().div(2.)) + true_height.div(2.),
             );
 
             for x in 0..layer.width().unwrap() {
@@ -62,6 +64,7 @@ fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<Asse
                                         tile.tileset().tile_width.mul(layer_tile.id() + 1) as f32,
                                         tile.tileset().tile_height as f32,
                                     )),
+                                    custom_size: Some(Vec2::new(true_width, true_height)),
                                     ..Default::default()
                                 },
                                 texture: asset_server.load(AssetPath::from_path(Path::new(
@@ -74,8 +77,8 @@ fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<Asse
                                         .unwrap(),
                                 ))),
                                 transform: Transform::from_xyz(
-                                    top_left_coord.0 + map.tile_width.mul(x) as f32,
-                                    top_left_coord.1 + map.tile_height.mul(y) as f32,
+                                    top_left_coord.0 + true_width.mul(x as f32),
+                                    top_left_coord.1 + true_height.mul(y as f32) ,
                                     0.,
                                 ),
                                 ..Default::default()
