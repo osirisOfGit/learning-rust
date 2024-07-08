@@ -7,9 +7,10 @@ use bevy::{
     app::{App, Startup},
     asset::{AssetPath, AssetServer},
     log::error,
-    math::{Rect, Vec2},
+    math::{Rect, Vec2, Vec3},
     prelude::{
-        default, Camera2dBundle, Commands, DefaultPlugins, PluginGroup, Query, Res, Resource, WindowPlugin
+        default, Camera2dBundle, Commands, DefaultPlugins, PluginGroup, Query, Res, Resource,
+        WindowPlugin,
     },
     sprite::{Sprite, SpriteBundle},
     transform::components::Transform,
@@ -38,18 +39,18 @@ fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<Asse
 
     match tiled_loader.load_tmx_map("assets/checkers_board.tmx") {
         Ok(map) => {
+            let resolution = &windows.single().resolution;
+            let scaled = (resolution.width().div(map.tile_width.mul(map.width) as f32), resolution.height().div(map.tile_height.mul(map.height) as f32));
+            let tile_sizes = (map.tile_width as f32 * scaled.0, map.tile_height as f32 * scaled.0);
+
             let layer = match map.get_layer(0).unwrap().layer_type() {
                 LayerType::Tiles(layer) => layer,
                 _ => panic!("Layer #0 is not a tile layer"),
             };
-            let resolution = &windows.single().resolution;
-
-            let true_width = map.tile_width as f32 + resolution.width().div(layer.width().unwrap() as f32);
-            let true_height = map.tile_height as f32 + resolution.height().div(layer.height().unwrap() as f32);
 
             let top_left_coord = (
-                (0. - resolution.width().div(2.)) + true_width.div(2.),
-                (0. - resolution.height().div(2.)) + true_height.div(2.),
+                (0. - resolution.width().div(2.)) + tile_sizes.0.div(2.),
+                (0. - resolution.height().div(2.)) + tile_sizes.1.div(2.),
             );
 
             for x in 0..layer.width().unwrap() {
@@ -64,7 +65,6 @@ fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<Asse
                                         tile.tileset().tile_width.mul(layer_tile.id() + 1) as f32,
                                         tile.tileset().tile_height as f32,
                                     )),
-                                    custom_size: Some(Vec2::new(true_width, true_height)),
                                     ..Default::default()
                                 },
                                 texture: asset_server.load(AssetPath::from_path(Path::new(
@@ -76,11 +76,15 @@ fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<Asse
                                         .file_name()
                                         .unwrap(),
                                 ))),
-                                transform: Transform::from_xyz(
-                                    top_left_coord.0 + true_width.mul(x as f32),
-                                    top_left_coord.1 + true_height.mul(y as f32) ,
-                                    0.,
-                                ),
+                                transform: Transform {
+                                    translation: Vec3::new(
+                                        top_left_coord.0 + tile_sizes.0.mul(x as f32),
+                                        top_left_coord.1 + tile_sizes.1.mul(y as f32),
+                                        0.,
+                                    ),
+                                    scale: Vec3::new(scaled.0, scaled.1, 0.),
+                                    ..Default::default()
+                                },
                                 ..Default::default()
                             })
                         });
