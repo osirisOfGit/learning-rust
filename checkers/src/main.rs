@@ -12,7 +12,7 @@ use bevy::{
         default, Camera2dBundle, Commands, DefaultPlugins, PluginGroup, Query, Res, Resource,
         WindowPlugin,
     },
-    sprite::{Sprite, SpriteBundle},
+    sprite::{BorderRect, ImageScaleMode, Sprite, SpriteBundle, TextureSlicer},
     transform::components::Transform,
     window::{Window, WindowResolution},
 };
@@ -57,7 +57,7 @@ fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<Asse
                 for y in 0..layer.height().unwrap() {
                     layer.get_tile(x as i32, y as i32).map(|layer_tile| {
                         layer_tile.get_tile().map(|tile| {
-                            commands.spawn(SpriteBundle {
+                            let mut cmd = commands.spawn(SpriteBundle {
                                 sprite: Sprite {
                                     rect: Some(Rect::new(
                                         (0 + tile.tileset().tile_width.mul(layer_tile.id())) as f32,
@@ -86,7 +86,14 @@ fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<Asse
                                     ..Default::default()
                                 },
                                 ..Default::default()
-                            })
+                            });
+
+                            cmd.insert(ImageScaleMode::Sliced(TextureSlicer {
+                                border: BorderRect::square(1.),
+                                center_scale_mode: bevy::sprite::SliceScaleMode::Tile { stretch_value: 0.1 },
+                                sides_scale_mode: bevy::sprite::SliceScaleMode::Tile { stretch_value: 0.1 },
+                                max_corner_scale: 0.2
+                            }));
                         });
                     });
                 }
