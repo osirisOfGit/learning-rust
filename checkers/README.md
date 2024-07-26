@@ -24,6 +24,8 @@ Get practice implementing [Rust](https://doc.rust-lang.org/book/) in combination
 
 ## Lessons Learned
 
+- Don't rely on window scale factor to handle scaling - broke in Bevy 0.14 update. Scaling per entity is more reliable
+and gives more control
 
 ### Useful links
 
