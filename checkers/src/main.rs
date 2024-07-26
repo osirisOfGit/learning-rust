@@ -7,10 +7,9 @@ use bevy::{
     app::{App, Startup},
     asset::{AssetPath, AssetServer},
     log::error,
-    math::{Rect, Vec2, Vec3},
+    math::{Rect, Vec3},
     prelude::{
-        default, Camera2dBundle, Commands, DefaultPlugins, PluginGroup, Query, Res, Resource,
-        WindowPlugin,
+        default, Camera2dBundle, Commands, DefaultPlugins, PluginGroup, Query, Res, WindowPlugin,
     },
     sprite::{BorderRect, ImageScaleMode, Sprite, SpriteBundle, TextureSlicer},
     transform::components::Transform,

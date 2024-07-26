@@ -24,6 +24,7 @@ Get practice implementing [Rust](https://doc.rust-lang.org/book/) in combination
 
 ## Lessons Learned
 
+
 ### Useful links
 
 - <https://doc.mapeditor.org/en/stable/>
