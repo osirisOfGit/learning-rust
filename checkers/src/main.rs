@@ -27,11 +27,11 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Startup, setup)
+        .add_systems(Startup, initialize_board )
         .run();
 }
 
-fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<AssetServer>) {
+fn initialize_board(mut commands: Commands, windows: Query<&Window>, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2dBundle::default());
 
     let mut tiled_loader = Loader::new();
@@ -47,7 +47,7 @@ fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<Asse
                 _ => panic!("Layer #0 is not a tile layer"),
             };
 
-            let top_left_coord = (
+            let bottom_left_coord = (
                 (0. - resolution.width().div(2.)) + tile_sizes.0.div(2.),
                 (0. - resolution.height().div(2.)) + tile_sizes.1.div(2.),
             );
@@ -77,8 +77,8 @@ fn setup(mut commands: Commands, windows: Query<&Window>, asset_server: Res<Asse
                                 ))),
                                 transform: Transform {
                                     translation: Vec3::new(
-                                        top_left_coord.0 + tile_sizes.0.mul(x as f32),
-                                        top_left_coord.1 + tile_sizes.1.mul(y as f32),
+                                        bottom_left_coord.0 + tile_sizes.0.mul(x as f32),
+                                        bottom_left_coord.1 + tile_sizes.1.mul(y as f32),
                                         0.,
                                     ),
                                     scale: Vec3::new(scaled.0, scaled.1, 0.),
