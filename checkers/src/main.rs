@@ -4,7 +4,6 @@ use std::{
 };
 
 use bevy::{
-    a11y::accesskit::Vec2,
     app::{App, Startup},
     asset::{AssetPath, AssetServer, Assets},
     color::Color,
@@ -12,21 +11,17 @@ use bevy::{
     math::{Rect, Vec3},
     prelude::{
         default, BuildChildren, Bundle, Camera2dBundle, Circle, Commands, Component,
-        DefaultPlugins, Entity, IntoSystemConfigs, Mesh, PluginGroup, Query, Res, ResMut, Resource,
-        WindowPlugin, With,
+        DefaultPlugins, Entity, Mesh, PluginGroup, Query, Res, ResMut, Resource, WindowPlugin,
+        With,
     },
-    render::settings::Backends,
     sprite::{
-        BorderRect, ColorMaterial, ImageScaleMode, MaterialMesh2dBundle, Sprite, SpriteBundle,
-        TextureSlicer,
+        BorderRect, ColorMaterial, ImageScaleMode, MaterialMesh2dBundle, Mesh2dHandle, Sprite,
+        SpriteBundle, TextureSlicer,
     },
     transform::components::Transform,
     window::{Window, WindowResolution},
 };
-use tiled::{LayerType, Loader, TileLayer, Tileset};
-
-#[derive(Component)]
-struct PlayableSquare;
+use tiled::{LayerType, Loader, Tileset};
 
 #[derive(Resource)]
 struct Board {
@@ -39,19 +34,17 @@ struct Board {
 impl Board {
     fn calc_bottom_left_coord(&self) -> (f32, f32) {
         return (
-            (0. - self.window_resolution.0.div(2.)) + self.tile_size.0.mul(self.calc_scale_factor().0).div(2.),
-            (0. - self.window_resolution.1.div(2.)) + self.tile_size.1.mul(self.calc_scale_factor().1).div(2.),
+            (0. - self.window_resolution.0.div(2.))
+                + self.tile_size.0.mul(self.calc_scale_factor().0).div(2.),
+            (0. - self.window_resolution.1.div(2.))
+                + self.tile_size.1.mul(self.calc_scale_factor().1).div(2.),
         );
     }
 
     fn calc_scale_factor(&self) -> (f32, f32) {
         return (
-            self.window_resolution
-                .0
-                .div(self.board_size.0),
-            self.window_resolution
-                .1
-                .div(self.board_size.1),
+            self.window_resolution.0.div(self.board_size.0),
+            self.window_resolution.1.div(self.board_size.1),
         );
     }
 }
@@ -87,8 +80,10 @@ impl Tile {
                 ))),
                 transform: Transform {
                     translation: Vec3::new(
-                        board.calc_bottom_left_coord().0 + board.tile_size.0.mul(scale_fac.0).mul(index.0 as f32),
-                        board.calc_bottom_left_coord().1 + board.tile_size.1.mul(scale_fac.1).mul(index.1 as f32),
+                        board.calc_bottom_left_coord().0
+                            + board.tile_size.0.mul(scale_fac.0).mul(index.0 as f32),
+                        board.calc_bottom_left_coord().1
+                            + board.tile_size.1.mul(scale_fac.1).mul(index.1 as f32),
                         0.,
                     ),
                     scale: Vec3::new(scale_fac.0, scale_fac.1, 0.),
@@ -119,7 +114,13 @@ fn main() {
         .run();
 }
 
-fn initialize(mut commands: Commands, windows: Query<&Window>, asset_server: Res<AssetServer>) {
+fn initialize(
+    mut commands: Commands,
+    windows: Query<&Window>,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
     commands.spawn(Camera2dBundle::default());
 
     let mut tiled_loader = Loader::new();
@@ -146,7 +147,7 @@ fn initialize(mut commands: Commands, windows: Query<&Window>, asset_server: Res
                 for y in 0..layer.height().unwrap() {
                     layer.get_tile(x as i32, y as i32).map(|layer_tile| {
                         layer_tile.get_tile().map(|tile| {
-                            let mut cmd = commands.spawn(Tile::new(
+                            commands.spawn(Tile::new(
                                 &board,
                                 tile.tileset(),
                                 &asset_server,
@@ -154,8 +155,42 @@ fn initialize(mut commands: Commands, windows: Query<&Window>, asset_server: Res
                                 (x, y),
                             ));
 
-                            if (x % 2 == 0 && y % 2 == 0) || (x % 2 == 1 && y % 2 == 1) {
-                                cmd.insert(PlayableSquare {});
+                            if (y < 3 || y >= layer.height().unwrap() - 3) && x % 2 == y % 2 {
+                                let color = if y <= layer.height().unwrap().div(2) {
+                                    (255., 0., 0.)
+                                } else {
+                                    (255., 255., 255.)
+                                };
+                                commands.spawn(MaterialMesh2dBundle {
+                                    mesh: Mesh2dHandle(meshes.add(Circle {
+                                        radius: board.tile_size.1.div(2.),
+                                    })),
+                                    material: materials.add(Color::srgb(color.0, color.1, color.2)),
+                                    transform: Transform {
+                                        translation: Vec3::new(
+                                            board.calc_bottom_left_coord().0
+                                                + board
+                                                    .tile_size
+                                                    .0
+                                                    .mul(board.calc_scale_factor().0)
+                                                    .mul(x as f32),
+                                            board.calc_bottom_left_coord().1
+                                                + board
+                                                    .tile_size
+                                                    .1
+                                                    .mul(board.calc_scale_factor().1)
+                                                    .mul(y as f32),
+                                            1.,
+                                        ),
+                                        scale: Vec3::new(
+                                            board.calc_scale_factor().0,
+                                            board.calc_scale_factor().1,
+                                            1.,
+                                        ),
+                                        ..Default::default()
+                                    },
+                                    ..Default::default()
+                                });
                             }
                         });
                     });
@@ -165,23 +200,4 @@ fn initialize(mut commands: Commands, windows: Query<&Window>, asset_server: Res
         }
         Err(exception) => error!("Could not load map due to {}", exception),
     };
-}
-
-fn spawn_pieces(
-    mut commands: Commands,
-    playable_squares: Query<(Entity, &Transform), With<PlayableSquare>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
-    for (entity_id, transform) in playable_squares.iter() {
-        let new_piece = commands
-            .spawn(MaterialMesh2dBundle {
-                mesh: bevy::sprite::Mesh2dHandle(meshes.add(Circle { radius: 4. })),
-                material: materials.add(Color::srgb(255., 255., 255.)),
-                ..Default::default()
-            })
-            .id();
-
-        commands.entity(entity_id).add_child(new_piece);
-    }
 }
