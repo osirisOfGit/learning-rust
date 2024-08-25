@@ -4,23 +4,32 @@ use std::{
 };
 
 use bevy::{
-    app::{App, Startup},
+    app::{App, Startup, Update},
     asset::{AssetPath, AssetServer, Assets},
     color::Color,
+    input::common_conditions::input_just_pressed,
     log::error,
-    math::{Rect, Vec3},
+    math::{Rect, Vec2, Vec3},
     prelude::{
-        default, Bundle, Camera2dBundle, Circle, Commands,
-        DefaultPlugins, Mesh, PluginGroup, Query, Res, ResMut, Resource, WindowPlugin,
+        default, Bundle, Camera, Camera2dBundle, Circle, Commands, Component, DefaultPlugins,
+        GlobalTransform, IntoSystemConfigs, Mesh, MouseButton, PluginGroup, Query, Res, ResMut,
+        Resource, WindowPlugin, With,
     },
     sprite::{
         BorderRect, ColorMaterial, ImageScaleMode, MaterialMesh2dBundle, Mesh2dHandle, Sprite,
         SpriteBundle, TextureSlicer,
     },
     transform::components::Transform,
-    window::{Window, WindowResolution},
+    window::{PrimaryWindow, Window, WindowResolution},
 };
 use tiled::{LayerType, Loader, Tileset};
+
+/// The projected 2D world coordinates of the cursor (if it's within primary window bounds).
+#[derive(Resource)]
+struct CursorWorldPos(Option<Vec2>);
+
+// #[derive(Resource)]
+// struct SelectedPiece(Option<&)
 
 #[derive(Resource)]
 struct Board {
@@ -31,12 +40,17 @@ struct Board {
 }
 
 impl Board {
+    fn calc_scaled_tile_size(&self) -> (f32, f32) {
+        let scale = self.calc_scale_factor();
+
+        (self.tile_size.0.mul(scale.0), self.tile_size.1.mul(scale.1))
+    }
+
     fn calc_bottom_left_coord(&self) -> (f32, f32) {
+        let scaled_tile_size = self.calc_scaled_tile_size();
         (
-            (0. - self.window_resolution.0.div(2.))
-                + self.tile_size.0.mul(self.calc_scale_factor().0).div(2.),
-            (0. - self.window_resolution.1.div(2.))
-                + self.tile_size.1.mul(self.calc_scale_factor().1).div(2.),
+            (0. - self.window_resolution.0.div(2.)) + scaled_tile_size.0.div(2.),
+            (0. - self.window_resolution.1.div(2.)) + scaled_tile_size.1.div(2.),
         )
     }
 
@@ -49,11 +63,11 @@ impl Board {
 
     fn calc_scaled_tile_position(&self, coords: (u32, u32)) -> (f32, f32) {
         let bottom_left = self.calc_bottom_left_coord();
-        let scale = self.calc_scale_factor();
+        let scaled_tile_size = self.calc_scaled_tile_size();
 
         (
-            bottom_left.0 + self.tile_size.0.mul(scale.0).mul(coords.0 as f32),
-            bottom_left.1 + self.tile_size.1.mul(scale.1).mul(coords.1 as f32),
+            bottom_left.0 + scaled_tile_size.0.mul(coords.0 as f32),
+            bottom_left.1 + scaled_tile_size.1.mul(coords.1 as f32),
         )
     }
 }
@@ -70,7 +84,7 @@ impl Tile {
         tileset: &Tileset,
         asset_server: &Res<AssetServer>,
         tile_id: u32,
-        tile_coords: (f32, f32),
+        scaled_tile_coords: (f32, f32),
     ) -> Tile {
         let scale_fac = board.calc_scale_factor();
         Tile {
@@ -88,7 +102,7 @@ impl Tile {
                     tileset.image.as_ref().unwrap().source.file_name().unwrap(),
                 ))),
                 transform: Transform {
-                    translation: Vec3::new(tile_coords.0, tile_coords.1, 0.),
+                    translation: Vec3::new(scaled_tile_coords.0, scaled_tile_coords.1, 0.),
                     scale: Vec3::new(scale_fac.0, scale_fac.1, 0.),
                     ..Default::default()
                 },
@@ -104,6 +118,9 @@ impl Tile {
     }
 }
 
+#[derive(Component)]
+struct Piece;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -113,7 +130,16 @@ fn main() {
             }),
             ..default()
         }))
+        .insert_resource(CursorWorldPos(None))
         .add_systems(Startup, initialize)
+        .add_systems(
+            Update,
+            (
+                get_cursor_world_pos,
+                click_piece.run_if(input_just_pressed(MouseButton::Left)),
+            )
+                .chain(),
+        )
         .run();
 }
 
@@ -167,27 +193,30 @@ fn initialize(
                                     (255., 255., 255.)
                                 };
 
-
-                                commands.spawn(MaterialMesh2dBundle {
-                                    mesh: Mesh2dHandle(meshes.add(Circle {
-                                        radius: board.tile_size.1.div(2.),
-                                    })),
-                                    material: materials.add(Color::srgb(color.0, color.1, color.2)),
-                                    transform: Transform {
-                                        translation: Vec3::new(
-                                            scaled_tile_coords.0,
-                                            scaled_tile_coords.1,
-                                            1.,
-                                        ),
-                                        scale: Vec3::new(
-                                            board.calc_scale_factor().0,
-                                            board.calc_scale_factor().1,
-                                            1.,
-                                        ),
+                                commands.spawn((
+                                    MaterialMesh2dBundle {
+                                        mesh: Mesh2dHandle(meshes.add(Circle {
+                                            radius: board.tile_size.1.div(2.),
+                                        })),
+                                        material: materials
+                                            .add(Color::srgb(color.0, color.1, color.2)),
+                                        transform: Transform {
+                                            translation: Vec3::new(
+                                                scaled_tile_coords.0,
+                                                scaled_tile_coords.1,
+                                                1.,
+                                            ),
+                                            scale: Vec3::new(
+                                                board.calc_scale_factor().0,
+                                                board.calc_scale_factor().1,
+                                                0.,
+                                            ),
+                                            ..Default::default()
+                                        },
                                         ..Default::default()
                                     },
-                                    ..Default::default()
-                                });
+                                    Piece {},
+                                ));
                             }
                         });
                     });
@@ -196,5 +225,42 @@ fn initialize(
             commands.insert_resource(board);
         }
         Err(exception) => error!("Could not load map due to {}", exception),
+    };
+}
+
+fn get_cursor_world_pos(
+    mut cursor_world_pos: ResMut<CursorWorldPos>,
+    q_primary_window: Query<&Window, With<PrimaryWindow>>,
+    q_camera: Query<(&Camera, &GlobalTransform)>,
+) {
+    let primary_window = q_primary_window.single();
+    let (main_camera, main_camera_transform) = q_camera.single();
+
+    cursor_world_pos.0 = primary_window
+        .cursor_position()
+        .and_then(|cursor_pos| main_camera.viewport_to_world_2d(main_camera_transform, cursor_pos));
+}
+
+fn click_piece(
+    mut commands: Commands,
+    cursor_world_pos: Res<CursorWorldPos>,
+    board: Res<Board>,
+    pieces: Query<(&Transform), With<Piece>>,
+) {
+    // If the cursor is not within the primary window skip this system
+    let Some(cursor_world_pos) = cursor_world_pos.0 else {
+        return;
+    };
+
+    let clicked_piece = pieces
+        .iter()
+        .filter(|transform| {
+            transform.translation.truncate().distance(cursor_world_pos)
+                < board.calc_scaled_tile_size().0
+        })
+        .next();
+
+    if clicked_piece.is_some() {
+        println!("Clicked a piece!")
     };
 }
