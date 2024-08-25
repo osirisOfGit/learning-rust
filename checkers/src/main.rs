@@ -10,9 +10,8 @@ use bevy::{
     log::error,
     math::{Rect, Vec3},
     prelude::{
-        default, BuildChildren, Bundle, Camera2dBundle, Circle, Commands, Component,
-        DefaultPlugins, Entity, Mesh, PluginGroup, Query, Res, ResMut, Resource, WindowPlugin,
-        With,
+        default, Bundle, Camera2dBundle, Circle, Commands,
+        DefaultPlugins, Mesh, PluginGroup, Query, Res, ResMut, Resource, WindowPlugin,
     },
     sprite::{
         BorderRect, ColorMaterial, ImageScaleMode, MaterialMesh2dBundle, Mesh2dHandle, Sprite,
@@ -33,19 +32,29 @@ struct Board {
 
 impl Board {
     fn calc_bottom_left_coord(&self) -> (f32, f32) {
-        return (
+        (
             (0. - self.window_resolution.0.div(2.))
                 + self.tile_size.0.mul(self.calc_scale_factor().0).div(2.),
             (0. - self.window_resolution.1.div(2.))
                 + self.tile_size.1.mul(self.calc_scale_factor().1).div(2.),
-        );
+        )
     }
 
     fn calc_scale_factor(&self) -> (f32, f32) {
-        return (
+        (
             self.window_resolution.0.div(self.board_size.0),
             self.window_resolution.1.div(self.board_size.1),
-        );
+        )
+    }
+
+    fn calc_scaled_tile_position(&self, coords: (u32, u32)) -> (f32, f32) {
+        let bottom_left = self.calc_bottom_left_coord();
+        let scale = self.calc_scale_factor();
+
+        (
+            bottom_left.0 + self.tile_size.0.mul(scale.0).mul(coords.0 as f32),
+            bottom_left.1 + self.tile_size.1.mul(scale.1).mul(coords.1 as f32),
+        )
     }
 }
 
@@ -64,6 +73,7 @@ impl Tile {
         index: (u32, u32),
     ) -> Tile {
         let scale_fac = board.calc_scale_factor();
+        let scaled_tile_coords = board.calc_scaled_tile_position(index);
         Tile {
             sprite_bundle: SpriteBundle {
                 sprite: Sprite {
@@ -79,13 +89,7 @@ impl Tile {
                     tileset.image.as_ref().unwrap().source.file_name().unwrap(),
                 ))),
                 transform: Transform {
-                    translation: Vec3::new(
-                        board.calc_bottom_left_coord().0
-                            + board.tile_size.0.mul(scale_fac.0).mul(index.0 as f32),
-                        board.calc_bottom_left_coord().1
-                            + board.tile_size.1.mul(scale_fac.1).mul(index.1 as f32),
-                        0.,
-                    ),
+                    translation: Vec3::new(scaled_tile_coords.0, scaled_tile_coords.1, 0.),
                     scale: Vec3::new(scale_fac.0, scale_fac.1, 0.),
                     ..Default::default()
                 },
@@ -161,6 +165,8 @@ fn initialize(
                                 } else {
                                     (255., 255., 255.)
                                 };
+
+                                let scaled_tile_coords = board.calc_scaled_tile_position((x, y));
                                 commands.spawn(MaterialMesh2dBundle {
                                     mesh: Mesh2dHandle(meshes.add(Circle {
                                         radius: board.tile_size.1.div(2.),
@@ -168,18 +174,8 @@ fn initialize(
                                     material: materials.add(Color::srgb(color.0, color.1, color.2)),
                                     transform: Transform {
                                         translation: Vec3::new(
-                                            board.calc_bottom_left_coord().0
-                                                + board
-                                                    .tile_size
-                                                    .0
-                                                    .mul(board.calc_scale_factor().0)
-                                                    .mul(x as f32),
-                                            board.calc_bottom_left_coord().1
-                                                + board
-                                                    .tile_size
-                                                    .1
-                                                    .mul(board.calc_scale_factor().1)
-                                                    .mul(y as f32),
+                                            scaled_tile_coords.0,
+                                            scaled_tile_coords.1,
                                             1.,
                                         ),
                                         scale: Vec3::new(
