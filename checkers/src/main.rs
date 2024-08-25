@@ -40,34 +40,34 @@ struct Board {
 }
 
 impl Board {
-    fn calc_scaled_tile_size(&self) -> (f32, f32) {
-        let scale = self.calc_scale_factor();
-
-        (self.tile_size.0.mul(scale.0), self.tile_size.1.mul(scale.1))
-    }
-
-    fn calc_bottom_left_coord(&self) -> (f32, f32) {
-        let scaled_tile_size = self.calc_scaled_tile_size();
-        (
-            (0. - self.window_resolution.0.div(2.)) + scaled_tile_size.0.div(2.),
-            (0. - self.window_resolution.1.div(2.)) + scaled_tile_size.1.div(2.),
-        )
-    }
-
-    fn calc_scale_factor(&self) -> (f32, f32) {
-        (
+    fn calc_scale_factor(&self) -> Vec2 {
+        Vec2::new(
             self.window_resolution.0.div(self.board_size.0),
             self.window_resolution.1.div(self.board_size.1),
         )
     }
 
-    fn calc_scaled_tile_position(&self, coords: (u32, u32)) -> (f32, f32) {
+    fn calc_scaled_tile_size(&self) -> (f32, f32) {
+        let scale = self.calc_scale_factor();
+
+        (self.tile_size.0.mul(scale.x), self.tile_size.1.mul(scale.y))
+    }
+
+    fn calc_bottom_left_coord(&self) -> Vec2 {
+        let scaled_tile_size = self.calc_scaled_tile_size();
+        Vec2::new(
+            (0. - self.window_resolution.0.div(2.)) + scaled_tile_size.0.div(2.),
+            (0. - self.window_resolution.1.div(2.)) + scaled_tile_size.1.div(2.),
+        )
+    }
+
+    fn calc_scaled_tile_position(&self, coords: (u32, u32)) -> Vec2 {
         let bottom_left = self.calc_bottom_left_coord();
         let scaled_tile_size = self.calc_scaled_tile_size();
 
-        (
-            bottom_left.0 + scaled_tile_size.0.mul(coords.0 as f32),
-            bottom_left.1 + scaled_tile_size.1.mul(coords.1 as f32),
+        Vec2::new(
+            bottom_left.x + scaled_tile_size.0.mul(coords.0 as f32),
+            bottom_left.y + scaled_tile_size.1.mul(coords.1 as f32),
         )
     }
 }
@@ -84,9 +84,8 @@ impl Tile {
         tileset: &Tileset,
         asset_server: &Res<AssetServer>,
         tile_id: u32,
-        scaled_tile_coords: (f32, f32),
+        scaled_tile_coords: Vec2,
     ) -> Tile {
-        let scale_fac = board.calc_scale_factor();
         Tile {
             sprite_bundle: SpriteBundle {
                 sprite: Sprite {
@@ -102,8 +101,8 @@ impl Tile {
                     tileset.image.as_ref().unwrap().source.file_name().unwrap(),
                 ))),
                 transform: Transform {
-                    translation: Vec3::new(scaled_tile_coords.0, scaled_tile_coords.1, 0.),
-                    scale: Vec3::new(scale_fac.0, scale_fac.1, 0.),
+                    translation: scaled_tile_coords.extend(0.),
+                    scale: board.calc_scale_factor().extend(0.),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -171,7 +170,7 @@ fn initialize(
                 LayerType::Tiles(layer) => layer,
                 _ => panic!("Layer #0 is not a tile layer"),
             };
-
+                
             for x in 0..layer.width().unwrap() {
                 for y in 0..layer.height().unwrap() {
                     layer.get_tile(x as i32, y as i32).map(|layer_tile| {
@@ -201,16 +200,8 @@ fn initialize(
                                         material: materials
                                             .add(Color::srgb(color.0, color.1, color.2)),
                                         transform: Transform {
-                                            translation: Vec3::new(
-                                                scaled_tile_coords.0,
-                                                scaled_tile_coords.1,
-                                                1.,
-                                            ),
-                                            scale: Vec3::new(
-                                                board.calc_scale_factor().0,
-                                                board.calc_scale_factor().1,
-                                                0.,
-                                            ),
+                                            translation: scaled_tile_coords.extend(1.),
+                                            scale: board.calc_scale_factor().extend(0.),
                                             ..Default::default()
                                         },
                                         ..Default::default()
@@ -254,11 +245,10 @@ fn click_piece(
 
     let clicked_piece = pieces
         .iter()
-        .filter(|transform| {
+        .find(|transform| {
             transform.translation.truncate().distance(cursor_world_pos)
                 < board.calc_scaled_tile_size().0
-        })
-        .next();
+        });
 
     if clicked_piece.is_some() {
         println!("Clicked a piece!")
