@@ -70,10 +70,9 @@ impl Tile {
         tileset: &Tileset,
         asset_server: &Res<AssetServer>,
         tile_id: u32,
-        index: (u32, u32),
+        tile_coords: (f32, f32),
     ) -> Tile {
         let scale_fac = board.calc_scale_factor();
-        let scaled_tile_coords = board.calc_scaled_tile_position(index);
         Tile {
             sprite_bundle: SpriteBundle {
                 sprite: Sprite {
@@ -89,7 +88,7 @@ impl Tile {
                     tileset.image.as_ref().unwrap().source.file_name().unwrap(),
                 ))),
                 transform: Transform {
-                    translation: Vec3::new(scaled_tile_coords.0, scaled_tile_coords.1, 0.),
+                    translation: Vec3::new(tile_coords.0, tile_coords.1, 0.),
                     scale: Vec3::new(scale_fac.0, scale_fac.1, 0.),
                     ..Default::default()
                 },
@@ -151,12 +150,14 @@ fn initialize(
                 for y in 0..layer.height().unwrap() {
                     layer.get_tile(x as i32, y as i32).map(|layer_tile| {
                         layer_tile.get_tile().map(|tile| {
+                            let scaled_tile_coords = board.calc_scaled_tile_position((x, y));
+
                             commands.spawn(Tile::new(
                                 &board,
                                 tile.tileset(),
                                 &asset_server,
                                 layer_tile.id(),
-                                (x, y),
+                                scaled_tile_coords,
                             ));
 
                             if (y < 3 || y >= layer.height().unwrap() - 3) && x % 2 == y % 2 {
@@ -166,7 +167,7 @@ fn initialize(
                                     (255., 255., 255.)
                                 };
 
-                                let scaled_tile_coords = board.calc_scaled_tile_position((x, y));
+
                                 commands.spawn(MaterialMesh2dBundle {
                                     mesh: Mesh2dHandle(meshes.add(Circle {
                                         radius: board.tile_size.1.div(2.),
