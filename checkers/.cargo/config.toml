@@ -1,4 +1,8 @@
 # for Linux - https://bevyengine.org/learn/quick-start/getting-started/setup/#alternative-linkers
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+rustflags = ["-C", "link-arg=-fuse-ld=lld", "-Zshare-generics=y"]
+
+# [target.x86_64-pc-windows-gnu]
+# linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
