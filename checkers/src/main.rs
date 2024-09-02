@@ -11,9 +11,7 @@ use bevy::{
     log::error,
     math::{Rect, Vec2, Vec3},
     prelude::{
-        default, Bundle, Camera, Camera2dBundle, Circle, Commands, Component, DefaultPlugins,
-        GlobalTransform, IntoSystemConfigs, Mesh, MouseButton, PluginGroup, Query, Res, ResMut,
-        Resource, WindowPlugin, With,
+        default, Bundle, Camera, Camera2dBundle, Circle, Commands, Component, DefaultPlugins, Entity, GlobalTransform, IntoSystemConfigs, Mesh, MouseButton, PluginGroup, Query, Res, ResMut, Resource, WindowPlugin, With, Without
     },
     sprite::{
         BorderRect, ColorMaterial, ImageScaleMode, MaterialMesh2dBundle, Mesh2dHandle, Sprite,
@@ -27,6 +25,9 @@ use tiled::{LayerType, Loader, Tileset};
 /// The projected 2D world coordinates of the cursor (if it's within primary window bounds).
 #[derive(Resource)]
 struct CursorWorldPos(Option<Vec2>);
+ 
+#[derive(Component)]
+struct ClickedPiece();
 
 // #[derive(Resource)]
 // struct SelectedPiece(Option<&)
@@ -65,6 +66,7 @@ impl Board {
         let bottom_left = self.calc_bottom_left_coord();
         let scaled_tile_size = self.calc_scaled_tile_size();
 
+
         Vec2::new(
             bottom_left.x + scaled_tile_size.0.mul(coords.0 as f32),
             bottom_left.y + scaled_tile_size.1.mul(coords.1 as f32),
@@ -72,21 +74,25 @@ impl Board {
     }
 }
 
+#[derive(Component)]
+struct Tile;
+
 #[derive(Bundle)]
-struct Tile {
+struct TileBundle {
     sprite_bundle: SpriteBundle,
     scale: ImageScaleMode,
+    tile: Tile
 }
 
-impl Tile {
+impl TileBundle {
     fn new(
         board: &Board,
         tileset: &Tileset,
         asset_server: &Res<AssetServer>,
         tile_id: u32,
         scaled_tile_coords: Vec2,
-    ) -> Tile {
-        Tile {
+    ) -> TileBundle {
+        TileBundle {
             sprite_bundle: SpriteBundle {
                 sprite: Sprite {
                     rect: Some(Rect::new(
@@ -113,6 +119,7 @@ impl Tile {
                 sides_scale_mode: bevy::sprite::SliceScaleMode::Tile { stretch_value: 0.1 },
                 max_corner_scale: 0.2,
             }),
+            tile: Tile
         }
     }
 }
@@ -177,7 +184,7 @@ fn initialize(
                         layer_tile.get_tile().map(|tile| {
                             let scaled_tile_coords = board.calc_scaled_tile_position((x, y));
 
-                            commands.spawn(Tile::new(
+                            commands.spawn(TileBundle::new(
                                 &board,
                                 tile.tileset(),
                                 &asset_server,
@@ -236,7 +243,7 @@ fn click_piece(
     mut commands: Commands,
     cursor_world_pos: Res<CursorWorldPos>,
     board: Res<Board>,
-    pieces: Query<(&Transform), With<Piece>>,
+    pieces: Query<(Entity, &Transform), With<Piece>>,
 ) {
     // If the cursor is not within the primary window skip this system
     let Some(cursor_world_pos) = cursor_world_pos.0 else {
@@ -246,11 +253,20 @@ fn click_piece(
     let clicked_piece = pieces
         .iter()
         .find(|transform| {
-            transform.translation.truncate().distance(cursor_world_pos)
+            transform.1.translation.truncate().distance(cursor_world_pos)
                 < board.calc_scaled_tile_size().0
         });
 
     if clicked_piece.is_some() {
-        println!("Clicked a piece!")
+        commands.get_entity(clicked_piece.unwrap().0).unwrap().insert(ClickedPiece());
     };
+}
+
+fn highlight_valid_moves(
+    mut commands: Commands,
+    tiles: Query<&Transform, With<Tile>>,
+    pieces: Query<&Transform, (With<Piece>, Without<ClickedPiece>)>,
+    clicked_piece: Query<&Transform, With<ClickedPiece>>
+) {
+
 }
