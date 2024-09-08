@@ -6,7 +6,7 @@ use std::{
 use bevy::{
     app::{App, Startup, Update},
     asset::{AssetPath, AssetServer, Assets},
-    color::Color,
+    color::{palettes::css::BLACK, Color},
     input::common_conditions::input_just_pressed,
     log::error,
     math::{Rect, Vec2, Vec3},
@@ -124,8 +124,13 @@ impl TileBundle {
     }
 }
 
+enum PlayerColor {
+    RED,
+    BLACK
+}
+
 #[derive(Component)]
-struct Piece;
+struct Piece(PlayerColor);
 
 fn main() {
     App::new()
@@ -193,10 +198,14 @@ fn initialize(
                             ));
 
                             if (y < 3 || y >= layer.height().unwrap() - 3) && x % 2 == y % 2 {
-                                let color = if y <= layer.height().unwrap().div(2) {
-                                    (255., 0., 0.)
+                                let color;
+                                let piece;
+                                if y <= layer.height().unwrap().div(2) {
+                                    color = (255., 0., 0.);
+                                    piece = Piece(PlayerColor::RED);
                                 } else {
-                                    (255., 255., 255.)
+                                    color = (255., 255., 255.);
+                                    piece = Piece(PlayerColor::BLACK);
                                 };
 
                                 commands.spawn((
@@ -213,7 +222,7 @@ fn initialize(
                                         },
                                         ..Default::default()
                                     },
-                                    Piece {},
+                                    piece,
                                 ));
                             }
                         });
@@ -265,8 +274,8 @@ fn click_piece(
 fn highlight_valid_moves(
     mut commands: Commands,
     tiles: Query<&Transform, With<Tile>>,
-    pieces: Query<&Transform, (With<Piece>, Without<ClickedPiece>)>,
-    clicked_piece: Query<&Transform, With<ClickedPiece>>
+    pieces: Query<(&Piece, &Transform), (With<Piece>, Without<ClickedPiece>)>,
+    clicked_piece: Query<(&Piece, &Transform), With<ClickedPiece>>
 ) {
 
 }
