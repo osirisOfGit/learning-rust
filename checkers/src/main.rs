@@ -11,7 +11,9 @@ use bevy::{
     log::error,
     math::{Rect, Vec2, Vec3},
     prelude::{
-        default, Bundle, Camera, Camera2dBundle, Circle, Commands, Component, DefaultPlugins, Entity, GlobalTransform, IntoSystemConfigs, Mesh, MouseButton, PluginGroup, Query, Res, ResMut, Resource, WindowPlugin, With, Without
+        default, Bundle, Camera, Camera2dBundle, Circle, Commands, Component, DefaultPlugins,
+        Entity, GlobalTransform, IntoSystemConfigs, Mesh, MouseButton, PluginGroup, Query, Res,
+        ResMut, Resource, WindowPlugin, With, Without,
     },
     sprite::{
         BorderRect, ColorMaterial, ImageScaleMode, MaterialMesh2dBundle, Mesh2dHandle, Sprite,
@@ -25,12 +27,6 @@ use tiled::{LayerType, Loader, Tileset};
 /// The projected 2D world coordinates of the cursor (if it's within primary window bounds).
 #[derive(Resource)]
 struct CursorWorldPos(Option<Vec2>);
- 
-#[derive(Component)]
-struct ClickedPiece();
-
-// #[derive(Resource)]
-// struct SelectedPiece(Option<&)
 
 #[derive(Resource)]
 struct Board {
@@ -66,7 +62,6 @@ impl Board {
         let bottom_left = self.calc_bottom_left_coord();
         let scaled_tile_size = self.calc_scaled_tile_size();
 
-
         Vec2::new(
             bottom_left.x + scaled_tile_size.0.mul(coords.0 as f32),
             bottom_left.y + scaled_tile_size.1.mul(coords.1 as f32),
@@ -77,11 +72,14 @@ impl Board {
 #[derive(Component)]
 struct Tile;
 
+#[derive(Component)]
+struct PlayableTile;
+
 #[derive(Bundle)]
 struct TileBundle {
     sprite_bundle: SpriteBundle,
     scale: ImageScaleMode,
-    tile: Tile
+    tile: Tile,
 }
 
 impl TileBundle {
@@ -119,18 +117,21 @@ impl TileBundle {
                 sides_scale_mode: bevy::sprite::SliceScaleMode::Tile { stretch_value: 0.1 },
                 max_corner_scale: 0.2,
             }),
-            tile: Tile
+            tile: Tile,
         }
     }
 }
 
 enum PlayerColor {
     RED,
-    BLACK
+    BLACK,
 }
 
 #[derive(Component)]
 struct Piece(PlayerColor);
+
+#[derive(Component)]
+struct ClickedPiece();
 
 fn main() {
     App::new()
@@ -182,14 +183,14 @@ fn initialize(
                 LayerType::Tiles(layer) => layer,
                 _ => panic!("Layer #0 is not a tile layer"),
             };
-                
+
             for x in 0..layer.width().unwrap() {
                 for y in 0..layer.height().unwrap() {
                     layer.get_tile(x as i32, y as i32).map(|layer_tile| {
                         layer_tile.get_tile().map(|tile| {
                             let scaled_tile_coords = board.calc_scaled_tile_position((x, y));
 
-                            commands.spawn(TileBundle::new(
+                            let mut tile_bund = commands.spawn(TileBundle::new(
                                 &board,
                                 tile.tileset(),
                                 &asset_server,
@@ -197,33 +198,37 @@ fn initialize(
                                 scaled_tile_coords,
                             ));
 
-                            if (y < 3 || y >= layer.height().unwrap() - 3) && x % 2 == y % 2 {
-                                let color;
-                                let piece;
-                                if y <= layer.height().unwrap().div(2) {
-                                    color = (255., 0., 0.);
-                                    piece = Piece(PlayerColor::RED);
-                                } else {
-                                    color = (255., 255., 255.);
-                                    piece = Piece(PlayerColor::BLACK);
-                                };
+                            if x % 2 == y % 2 {
+                                tile_bund.insert(PlayableTile);
 
-                                commands.spawn((
-                                    MaterialMesh2dBundle {
-                                        mesh: Mesh2dHandle(meshes.add(Circle {
-                                            radius: board.tile_size.1.div(2.),
-                                        })),
-                                        material: materials
-                                            .add(Color::srgb(color.0, color.1, color.2)),
-                                        transform: Transform {
-                                            translation: scaled_tile_coords.extend(1.),
-                                            scale: board.calc_scale_factor().extend(0.),
+                                if y < 3 || y >= layer.height().unwrap() - 3 {
+                                    let color;
+                                    let piece;
+                                    if y <= layer.height().unwrap().div(2) {
+                                        color = (255., 0., 0.);
+                                        piece = Piece(PlayerColor::RED);
+                                    } else {
+                                        color = (255., 255., 255.);
+                                        piece = Piece(PlayerColor::BLACK);
+                                    };
+
+                                    commands.spawn((
+                                        MaterialMesh2dBundle {
+                                            mesh: Mesh2dHandle(meshes.add(Circle {
+                                                radius: board.tile_size.1.div(2.),
+                                            })),
+                                            material: materials
+                                                .add(Color::srgb(color.0, color.1, color.2)),
+                                            transform: Transform {
+                                                translation: scaled_tile_coords.extend(1.),
+                                                scale: board.calc_scale_factor().extend(0.),
+                                                ..Default::default()
+                                            },
                                             ..Default::default()
                                         },
-                                        ..Default::default()
-                                    },
-                                    piece,
-                                ));
+                                        piece,
+                                    ));
+                                }
                             }
                         });
                     });
@@ -259,24 +264,29 @@ fn click_piece(
         return;
     };
 
-    let clicked_piece = pieces
-        .iter()
-        .find(|transform| {
-            transform.1.translation.truncate().distance(cursor_world_pos)
-                < board.calc_scaled_tile_size().0
-        });
+    let clicked_piece = pieces.iter().find(|transform| {
+        transform
+            .1
+            .translation
+            .truncate()
+            .distance(cursor_world_pos)
+            < board.calc_scaled_tile_size().0
+    });
 
     if clicked_piece.is_some() {
-        commands.get_entity(clicked_piece.unwrap().0).unwrap().insert(ClickedPiece());
+        commands
+            .get_entity(clicked_piece.unwrap().0)
+            .unwrap()
+            .insert(ClickedPiece());
     };
 }
 
 fn highlight_valid_moves(
     mut commands: Commands,
     board: Res<Board>,
-    tiles: Query<&Transform, With<Tile>>,
+    tiles: Query<&Transform, With<PlayableTile>>,
     pieces: Query<(&Piece, &Transform), (With<Piece>, Without<ClickedPiece>)>,
-    clicked_piece: Query<(&Piece, &Transform), With<ClickedPiece>>
+    clicked_piece: Query<(&Piece, &Transform), With<ClickedPiece>>,
 ) {
-        
+    let clicked_piece = clicked_piece.single();
 }
