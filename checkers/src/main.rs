@@ -273,9 +273,10 @@ fn click_piece(
 
 fn highlight_valid_moves(
     mut commands: Commands,
+    board: Res<Board>,
     tiles: Query<&Transform, With<Tile>>,
     pieces: Query<(&Piece, &Transform), (With<Piece>, Without<ClickedPiece>)>,
     clicked_piece: Query<(&Piece, &Transform), With<ClickedPiece>>
 ) {
-
+        
 }
