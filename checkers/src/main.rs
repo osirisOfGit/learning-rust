@@ -122,6 +122,7 @@ impl TileBundle {
     }
 }
 
+#[derive(PartialEq)]
 enum PlayerColor {
     RED,
     BLACK,
@@ -202,14 +203,10 @@ fn initialize(
                                 tile_bund.insert(PlayableTile);
 
                                 if y < 3 || y >= layer.height().unwrap() - 3 {
-                                    let color;
-                                    let piece;
-                                    if y <= layer.height().unwrap().div(2) {
-                                        color = (255., 0., 0.);
-                                        piece = Piece(PlayerColor::RED);
+                                    let (color, piece) = if y <= layer.height().unwrap().div(2) {
+                                        ((255., 0., 0.), Piece(PlayerColor::RED))
                                     } else {
-                                        color = (255., 255., 255.);
-                                        piece = Piece(PlayerColor::BLACK);
+                                        ((255., 255., 255.), Piece(PlayerColor::BLACK))
                                     };
 
                                     commands.spawn((
@@ -289,4 +286,38 @@ fn highlight_valid_moves(
     clicked_piece: Query<(&Piece, &Transform), With<ClickedPiece>>,
 ) {
     let clicked_piece = clicked_piece.single();
+
+    tiles
+        .iter()
+        .filter(|tile_pos| {
+            let clicked_pos = clicked_piece.1.translation;
+            let tile_translation = tile_pos.translation;
+
+            let is_correct_direction = if clicked_piece.0 .0 == PlayerColor::BLACK {
+                clicked_pos.y < tile_translation.y
+            } else {
+                clicked_pos.y > tile_translation.y
+            };
+
+            is_correct_direction
+                && tile_translation.distance(clicked_pos) <= board.calc_scaled_tile_size().1.mul(1.5)
+        })
+        .filter_map(|viable_tile| {
+            let piece_on_tile = pieces.iter().find(|piece| {
+                piece
+                    .1
+                    .translation
+                    .truncate()
+                    .distance(viable_tile.translation.truncate())
+                    < board.calc_scaled_tile_size().0
+            });
+
+            piece_on_tile
+                .filter(|piece| piece.0 .0 != clicked_piece.0 .0)
+                .map(|piece| {
+                    tiles.iter().find(|tile| {
+
+                    })
+                })
+        });
 }
