@@ -7,18 +7,17 @@ use bevy::{
     app::{App, Startup, Update},
     asset::{AssetPath, AssetServer, Assets},
     color::{palettes::css::BLACK, Color},
+    ecs::system::Single,
     input::common_conditions::input_just_pressed,
     log::error,
     math::{Rect, Vec2, Vec3},
     prelude::{
-        default, Bundle, Camera, Camera2dBundle, Circle, Commands, Component, DefaultPlugins,
-        Entity, GlobalTransform, IntoSystemConfigs, Mesh, MouseButton, PluginGroup, Query, Res,
-        ResMut, Resource, WindowPlugin, With, Without,
+        default, Bundle, Camera, Camera2d, Circle, Commands, Component, DefaultPlugins, Entity,
+        GlobalTransform, IntoScheduleConfigs, Mesh, MouseButton, PluginGroup, Query, Res, ResMut,
+        Resource, WindowPlugin, With, Without,
     },
-    sprite::{
-        BorderRect, ColorMaterial, ImageScaleMode, MaterialMesh2dBundle, Mesh2dHandle, Sprite,
-        SpriteBundle, TextureSlicer,
-    },
+    sprite::{Sprite, SpriteImageMode},
+    sprite_render::ColorMaterial,
     transform::components::Transform,
     window::{PrimaryWindow, Window, WindowResolution},
 };
@@ -75,10 +74,10 @@ struct Tile;
 #[derive(Component)]
 struct PlayableTile;
 
-#[derive(Bundle)]
+#[derive(Component)]
 struct TileBundle {
-    sprite_bundle: SpriteBundle,
-    scale: ImageScaleMode,
+    sprite: Sprite,
+    scale: SpriteImageMode,
     tile: Tile,
 }
 
@@ -91,34 +90,45 @@ impl TileBundle {
         scaled_tile_coords: Vec2,
     ) -> TileBundle {
         TileBundle {
-            sprite_bundle: SpriteBundle {
-                sprite: Sprite {
-                    rect: Some(Rect::new(
-                        (0 + tileset.tile_width.mul(tile_id)) as f32,
-                        0.,
-                        tileset.tile_width.mul(tile_id + 1) as f32,
-                        tileset.tile_height as f32,
-                    )),
-                    ..Default::default()
-                },
-                texture: asset_server.load(AssetPath::from_path(Path::new(
-                    tileset.image.as_ref().unwrap().source.file_name().unwrap(),
-                ))),
-                transform: Transform {
-                    translation: scaled_tile_coords.extend(0.),
-                    scale: board.calc_scale_factor().extend(0.),
-                    ..Default::default()
-                },
-                ..Default::default()
+            sprite: Sprite {
+                image: (),
+                texture_atlas: (),
+                color: (),
+                flip_x: (),
+                flip_y: (),
+                custom_size: (),
+                rect: (),
+                image_mode: (),
             },
-            scale: ImageScaleMode::Sliced(TextureSlicer {
-                border: BorderRect::square(1.),
-                center_scale_mode: bevy::sprite::SliceScaleMode::Tile { stretch_value: 0.1 },
-                sides_scale_mode: bevy::sprite::SliceScaleMode::Tile { stretch_value: 0.1 },
-                max_corner_scale: 0.2,
-            }),
-            tile: Tile,
         }
+        //     sprite_bundle: SpriteBundle {
+        //         sprite: Sprite {
+        //             rect: Some(Rect::new(
+        //                 (0 + tileset.tile_width.mul(tile_id)) as f32,
+        //                 0.,
+        //                 tileset.tile_width.mul(tile_id + 1) as f32,
+        //                 tileset.tile_height as f32,
+        //             )),
+        //             ..Default::default()
+        //         },
+        //         texture: asset_server.load(AssetPath::from_path(Path::new(
+        //             tileset.image.as_ref().unwrap().source.file_name().unwrap(),
+        //         ))),
+        //         transform: Transform {
+        //             translation: scaled_tile_coords.extend(0.),
+        //             scale: board.calc_scale_factor().extend(0.),
+        //             ..Default::default()
+        //         },
+        //         ..Default::default()
+        //     },
+        //     scale: ImageScaleMode::Sliced(TextureSlicer {
+        //         border: BorderRect::square(1.),
+        //         center_scale_mode: bevy::sprite::SliceScaleMode::Tile { stretch_value: 0.1 },
+        //         sides_scale_mode: bevy::sprite::SliceScaleMode::Tile { stretch_value: 0.1 },
+        //         max_corner_scale: 0.2,
+        //     }),
+        //     tile: Tile,
+        // }
     }
 }
 
@@ -163,13 +173,13 @@ fn initialize(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let mut tiled_loader = Loader::new();
 
     match tiled_loader.load_tmx_map("assets/checkers_board.tmx") {
         Ok(map) => {
-            let resolution = &windows.single().resolution;
+            let resolution = &windows.single().map(|w| w.resolution).unwrap();
 
             let board = Board {
                 board_size: (
@@ -239,15 +249,16 @@ fn initialize(
 
 fn get_cursor_world_pos(
     mut cursor_world_pos: ResMut<CursorWorldPos>,
-    q_primary_window: Query<&Window, With<PrimaryWindow>>,
-    q_camera: Query<(&Camera, &GlobalTransform)>,
+    q_primary_window: Single<&Window, With<PrimaryWindow>>,
+    q_camera: Single<(&Camera, &GlobalTransform)>,
 ) {
-    let primary_window = q_primary_window.single();
-    let (main_camera, main_camera_transform) = q_camera.single();
+    let (camera, camera_transform) = *q_camera;
 
-    cursor_world_pos.0 = primary_window
-        .cursor_position()
-        .and_then(|cursor_pos| main_camera.viewport_to_world_2d(main_camera_transform, cursor_pos));
+    if let Some(cursor_position) = q_primary_window.cursor_position()
+        && let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_position)
+    {
+        cursor_world_pos.0 = Some(world_pos)
+    }
 }
 
 fn click_piece(
@@ -300,7 +311,8 @@ fn highlight_valid_moves(
             };
 
             is_correct_direction
-                && tile_translation.distance(clicked_pos) <= board.calc_scaled_tile_size().1.mul(1.5)
+                && tile_translation.distance(clicked_pos)
+                    <= board.calc_scaled_tile_size().1.mul(1.5)
         })
         .filter_map(|viable_tile| {
             let piece_on_tile = pieces.iter().find(|piece| {
@@ -312,12 +324,7 @@ fn highlight_valid_moves(
                     < board.calc_scaled_tile_size().0
             });
 
-            piece_on_tile
-                .filter(|piece| piece.0 .0 != clicked_piece.0 .0)
-                .map(|piece| {
-                    tiles.iter().find(|tile| {
-
-                    })
-                })
+            piece_on_tile.filter(|piece| piece.0 .0 != clicked_piece.0 .0)
+            // .map(|piece| tiles.iter().find(|tile| {}))
         });
 }
