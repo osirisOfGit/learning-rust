@@ -5,29 +5,30 @@ use std::{
 
 use bevy::{
     app::{App, Startup, Update},
-    asset::{AssetPath, AssetServer, Assets},
-    color::{palettes::css::BLACK, Color},
+    asset::{AssetServer, Assets},
+    color::Color,
     ecs::system::Single,
     input::common_conditions::input_just_pressed,
     log::error,
-    math::{Rect, Vec2, Vec3},
+    math::Vec2,
+    mesh::Mesh2d,
     prelude::{
-        default, Bundle, Camera, Camera2d, Circle, Commands, Component, DefaultPlugins, Entity,
-        GlobalTransform, IntoScheduleConfigs, Mesh, MouseButton, PluginGroup, Query, Res, ResMut,
-        Resource, WindowPlugin, With, Without,
+        Camera, Camera2d, Circle, Commands, Component, DefaultPlugins, Entity, GlobalTransform,
+        IntoScheduleConfigs, Mesh, MouseButton, PluginGroup, Query, Res, ResMut, Resource,
+        WindowPlugin, With, Without, default,
     },
-    sprite::{Sprite, SpriteImageMode},
-    sprite_render::ColorMaterial,
+    sprite::Sprite,
+    sprite_render::{ColorMaterial, MeshMaterial2d},
     transform::components::Transform,
     window::{PrimaryWindow, Window, WindowResolution},
 };
-use tiled::{LayerType, Loader, Tileset};
+use tiled::{LayerType, Loader, Map};
 
 /// The projected 2D world coordinates of the cursor (if it's within primary window bounds).
 #[derive(Resource)]
 struct CursorWorldPos(Option<Vec2>);
 
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 struct Board {
     // width, height
     board_size: (f32, f32),
@@ -66,6 +67,17 @@ impl Board {
             bottom_left.y + scaled_tile_size.1.mul(coords.1 as f32),
         )
     }
+
+    fn new(map: &Map, resolution: &WindowResolution) -> Board {
+        Board {
+            board_size: (
+                map.tile_width.mul(map.width) as f32,
+                map.tile_height.mul(map.height) as f32,
+            ),
+            tile_size: (map.tile_width as f32, map.tile_height as f32),
+            window_resolution: (resolution.width() as f32, resolution.height() as f32),
+        }
+    }
 }
 
 #[derive(Component)]
@@ -73,64 +85,6 @@ struct Tile;
 
 #[derive(Component)]
 struct PlayableTile;
-
-#[derive(Component)]
-struct TileBundle {
-    sprite: Sprite,
-    scale: SpriteImageMode,
-    tile: Tile,
-}
-
-impl TileBundle {
-    fn new(
-        board: &Board,
-        tileset: &Tileset,
-        asset_server: &Res<AssetServer>,
-        tile_id: u32,
-        scaled_tile_coords: Vec2,
-    ) -> TileBundle {
-        TileBundle {
-            sprite: Sprite {
-                image: (),
-                texture_atlas: (),
-                color: (),
-                flip_x: (),
-                flip_y: (),
-                custom_size: (),
-                rect: (),
-                image_mode: (),
-            },
-        }
-        //     sprite_bundle: SpriteBundle {
-        //         sprite: Sprite {
-        //             rect: Some(Rect::new(
-        //                 (0 + tileset.tile_width.mul(tile_id)) as f32,
-        //                 0.,
-        //                 tileset.tile_width.mul(tile_id + 1) as f32,
-        //                 tileset.tile_height as f32,
-        //             )),
-        //             ..Default::default()
-        //         },
-        //         texture: asset_server.load(AssetPath::from_path(Path::new(
-        //             tileset.image.as_ref().unwrap().source.file_name().unwrap(),
-        //         ))),
-        //         transform: Transform {
-        //             translation: scaled_tile_coords.extend(0.),
-        //             scale: board.calc_scale_factor().extend(0.),
-        //             ..Default::default()
-        //         },
-        //         ..Default::default()
-        //     },
-        //     scale: ImageScaleMode::Sliced(TextureSlicer {
-        //         border: BorderRect::square(1.),
-        //         center_scale_mode: bevy::sprite::SliceScaleMode::Tile { stretch_value: 0.1 },
-        //         sides_scale_mode: bevy::sprite::SliceScaleMode::Tile { stretch_value: 0.1 },
-        //         max_corner_scale: 0.2,
-        //     }),
-        //     tile: Tile,
-        // }
-    }
-}
 
 #[derive(PartialEq)]
 enum PlayerColor {
@@ -148,7 +102,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                resolution: WindowResolution::new(1028., 1028.),
+                resolution: WindowResolution::new(1028, 1028),
                 ..default()
             }),
             ..default()
@@ -168,7 +122,7 @@ fn main() {
 
 fn initialize(
     mut commands: Commands,
-    windows: Query<&Window>,
+    windows: Single<&Window>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -177,74 +131,55 @@ fn initialize(
 
     let mut tiled_loader = Loader::new();
 
-    match tiled_loader.load_tmx_map("assets/checkers_board.tmx") {
-        Ok(map) => {
-            let resolution = &windows.single().map(|w| w.resolution).unwrap();
+    let map = tiled_loader
+        .load_tmx_map("assets/checkers_board.tmx")
+        .expect("Board should have been loaded");
 
-            let board = Board {
-                board_size: (
-                    map.tile_width.mul(map.width) as f32,
-                    map.tile_height.mul(map.height) as f32,
-                ),
-                tile_size: (map.tile_width as f32, map.tile_height as f32),
-                window_resolution: (resolution.width() as f32, resolution.height() as f32),
-            };
+    let board = Board::new(&map, &windows.resolution);
 
-            let layer = match map.get_layer(0).unwrap().layer_type() {
-                LayerType::Tiles(layer) => layer,
-                _ => panic!("Layer #0 is not a tile layer"),
-            };
+    let layer = map
+        .get_layer(0)
+        .expect("Map should have a layer 0")
+        .clone()
+        .as_tile_layer()
+        .expect("Layer #0 should be a TileLayer");
 
-            for x in 0..layer.width().unwrap() {
-                for y in 0..layer.height().unwrap() {
-                    layer.get_tile(x as i32, y as i32).map(|layer_tile| {
-                        layer_tile.get_tile().map(|tile| {
-                            let scaled_tile_coords = board.calc_scaled_tile_position((x, y));
+    for x in 0..layer.width().unwrap() {
+        for y in 0..layer.height().unwrap() {
+            let scaled_tile_coords = board.calc_scaled_tile_position((x, y));
 
-                            let mut tile_bund = commands.spawn(TileBundle::new(
-                                &board,
-                                tile.tileset(),
-                                &asset_server,
-                                layer_tile.id(),
-                                scaled_tile_coords,
-                            ));
+            let mut tile_bund = commands.spawn((
+                Sprite::from_image(asset_server.load("board.png")),
+                Transform::default()
+                    .with_translation(scaled_tile_coords.extend(0.))
+                    .with_scale(board.calc_scale_factor().extend(0.)),
+            ));
 
-                            if x % 2 == y % 2 {
-                                tile_bund.insert(PlayableTile);
+            if x % 2 == y % 2 {
+                tile_bund.insert(PlayableTile);
 
-                                if y < 3 || y >= layer.height().unwrap() - 3 {
-                                    let (color, piece) = if y <= layer.height().unwrap().div(2) {
-                                        ((255., 0., 0.), Piece(PlayerColor::RED))
-                                    } else {
-                                        ((255., 255., 255.), Piece(PlayerColor::BLACK))
-                                    };
+                if y < 3 || y >= layer.height().unwrap() - 3 {
+                    let (color, piece) = if y <= layer.height().unwrap().div(2) {
+                        ((255., 0., 0.), Piece(PlayerColor::RED))
+                    } else {
+                        ((255., 255., 255.), Piece(PlayerColor::BLACK))
+                    };
 
-                                    commands.spawn((
-                                        MaterialMesh2dBundle {
-                                            mesh: Mesh2dHandle(meshes.add(Circle {
-                                                radius: board.tile_size.1.div(2.),
-                                            })),
-                                            material: materials
-                                                .add(Color::srgb(color.0, color.1, color.2)),
-                                            transform: Transform {
-                                                translation: scaled_tile_coords.extend(1.),
-                                                scale: board.calc_scale_factor().extend(0.),
-                                                ..Default::default()
-                                            },
-                                            ..Default::default()
-                                        },
-                                        piece,
-                                    ));
-                                }
-                            }
-                        });
-                    });
+                    commands.spawn((
+                        Mesh2d(meshes.add(Circle {
+                            radius: board.tile_size.1.div(2.),
+                        })),
+                        MeshMaterial2d(materials.add(Color::srgb(color.0, color.1, color.2))),
+                        Transform::default()
+                            .with_translation(scaled_tile_coords.extend(1.))
+                            .with_scale(board.calc_scale_factor().extend(0.)),
+                        piece,
+                    ));
                 }
             }
-            commands.insert_resource(board);
         }
-        Err(exception) => error!("Could not load map due to {}", exception),
-    };
+    }
+    commands.insert_resource(board);
 }
 
 fn get_cursor_world_pos(
@@ -298,33 +233,34 @@ fn highlight_valid_moves(
 ) {
     let clicked_piece = clicked_piece.single();
 
-    tiles
-        .iter()
-        .filter(|tile_pos| {
-            let clicked_pos = clicked_piece.1.translation;
-            let tile_translation = tile_pos.translation;
+    // tiles
+    //     .iter()
+    //     .filter(|tile_pos| {
+    //         let clicked_pos = clicked_piece.1.translation;
+    //         let tile_translation = tile_pos.translation;
 
-            let is_correct_direction = if clicked_piece.0 .0 == PlayerColor::BLACK {
-                clicked_pos.y < tile_translation.y
-            } else {
-                clicked_pos.y > tile_translation.y
-            };
+    //         let is_correct_direction = if clicked_piece.0.0 == PlayerColor::BLACK {
+    //             clicked_pos.y < tile_translation.y
+    //         } else {
+    //             clicked_pos.y > tile_translation.y
+    //         };
 
-            is_correct_direction
-                && tile_translation.distance(clicked_pos)
-                    <= board.calc_scaled_tile_size().1.mul(1.5)
-        })
-        .filter_map(|viable_tile| {
-            let piece_on_tile = pieces.iter().find(|piece| {
-                piece
-                    .1
-                    .translation
-                    .truncate()
-                    .distance(viable_tile.translation.truncate())
-                    < board.calc_scaled_tile_size().0
-            });
+    //         is_correct_direction
+    //             && tile_translation.distance(clicked_pos)
+    //                 <= board.calc_scaled_tile_size().1.mul(1.5)
+    //     })
+    //     .filter_map(|viable_tile| {
+    //         let piece_on_tile = pieces.iter().find(|piece| {
+    //             piece
+    //                 .1
+    //                 .translation
+    //                 .truncate()
+    //                 .distance(viable_tile.translation.truncate())
+    //                 < board.calc_scaled_tile_size().0
+    //         });
 
-            piece_on_tile.filter(|piece| piece.0 .0 != clicked_piece.0 .0)
-            // .map(|piece| tiles.iter().find(|tile| {}))
-        });
+    //         piece_on_tile
+    //             .filter(|piece| piece.0.0 != clicked_piece.0.0)
+    //             .map(|piece| tiles.iter().find(|tile| {}))
+    //     });
 }
